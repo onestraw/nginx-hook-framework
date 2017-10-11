@@ -1,0 +1,12 @@
+ngx_module_type=HTTP
+ngx_module_name=ngx_http_hook_module
+ngx_module_srcs="$ngx_addon_dir/ngx_http_hook_module.c \
+                 $ngx_addon_dir/ngx_http_hook_interface.c"
+ngx_module_deps="$ngx_addon_dir/ngx_http_hook_module.h"
+
+ngx_addon_name=$ngx_module_name
+
+HTTP_INCS="$HTTP_INCS $ngx_addon_dir"
+
+have=NGX_HTTP_HOOK . auto/have
+. auto/module

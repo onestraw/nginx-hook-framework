@@ -1,0 +1,173 @@
+diff -Naur nginx-1.13.5/src/http/modules/ngx_http_upstream_hash_module.c nginx-1.13.5.patch/src/http/modules/ngx_http_upstream_hash_module.c
+--- nginx-1.13.5/src/http/modules/ngx_http_upstream_hash_module.c	2017-09-05 07:59:32.000000000 -0700
++++ nginx-1.13.5.patch/src/http/modules/ngx_http_upstream_hash_module.c	2017-09-07 23:58:10.906555162 -0700
+@@ -246,6 +246,10 @@
+             goto next;
+         }
+ 
++        if (ngx_hook_http_upstream_get_hash_peer(pc, peer) == NGX_ERROR) {
++            goto next;
++        }
++
+         break;
+ 
+     next:
+@@ -556,6 +560,10 @@
+                 continue;
+             }
+ 
++            if (ngx_hook_http_upstream_get_chash_peer(pc, peer) == NGX_ERROR) {
++                continue;
++            }
++
+             peer->current_weight += peer->effective_weight;
+             total += peer->effective_weight;
+ 
+diff -Naur nginx-1.13.5/src/http/modules/ngx_http_upstream_ip_hash_module.c nginx-1.13.5.patch/src/http/modules/ngx_http_upstream_ip_hash_module.c
+--- nginx-1.13.5/src/http/modules/ngx_http_upstream_ip_hash_module.c	2017-09-05 07:59:32.000000000 -0700
++++ nginx-1.13.5.patch/src/http/modules/ngx_http_upstream_ip_hash_module.c	2017-09-07 23:57:40.422610473 -0700
+@@ -216,6 +216,10 @@
+             goto next;
+         }
+ 
++        if (ngx_hook_http_upstream_get_ip_hash_peer(pc, peer) == NGX_ERROR) {
++            goto next;
++        }
++
+         break;
+ 
+     next:
+diff -Naur nginx-1.13.5/src/http/modules/ngx_http_upstream_least_conn_module.c nginx-1.13.5.patch/src/http/modules/ngx_http_upstream_least_conn_module.c
+--- nginx-1.13.5/src/http/modules/ngx_http_upstream_least_conn_module.c	2017-09-05 07:59:32.000000000 -0700
++++ nginx-1.13.5.patch/src/http/modules/ngx_http_upstream_least_conn_module.c	2017-09-07 23:57:28.498632119 -0700
+@@ -158,6 +158,10 @@
+             continue;
+         }
+ 
++        if (ngx_hook_http_upstream_get_least_conn_peer(pc, peer) == NGX_ERROR) {
++            continue;
++        }
++
+         /*
+          * select peer with least number of connections; if there are
+          * multiple peers with the same number of connections, select
+@@ -217,6 +221,10 @@
+                 continue;
+             }
+ 
++            if (ngx_hook_http_upstream_get_least_conn_peer(pc, peer) == NGX_ERROR) {
++                continue;
++            }
++
+             peer->current_weight += peer->effective_weight;
+             total += peer->effective_weight;
+ 
+diff -Naur nginx-1.13.5/src/http/ngx_http.c nginx-1.13.5.patch/src/http/ngx_http.c
+--- nginx-1.13.5/src/http/ngx_http.c	2017-09-05 07:59:32.000000000 -0700
++++ nginx-1.13.5.patch/src/http/ngx_http.c	2017-10-11 00:56:55.222942980 -0700
+@@ -8,6 +8,9 @@
+ #include <ngx_config.h>
+ #include <ngx_core.h>
+ #include <ngx_http.h>
++#if (NGX_HTTP_HOOK)
++#include <ngx_http_hook_module.h>
++#endif
+ 
+ 
+ static char *ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+@@ -177,6 +180,13 @@
+         return NGX_CONF_ERROR;
+     }
+ 
++#if (NGX_HTTP_HOOK)
++    /*
++     * set the hook function
++     */
++
++    ngx_hook_interface_init(cf->cycle);
++#endif
+ 
+     /*
+      * create the main_conf's, the null srv_conf's, and the null loc_conf's
+diff -Naur nginx-1.13.5/src/http/ngx_http_upstream_round_robin.c nginx-1.13.5.patch/src/http/ngx_http_upstream_round_robin.c
+--- nginx-1.13.5/src/http/ngx_http_upstream_round_robin.c	2017-09-05 07:59:32.000000000 -0700
++++ nginx-1.13.5.patch/src/http/ngx_http_upstream_round_robin.c	2017-10-11 00:55:07.874937389 -0700
+@@ -106,6 +106,8 @@
+ 
+         us->peer.data = peers;
+ 
++        ngx_hook_http_upstream_init_round_robin_peers(cf, us);
++
+         /* backup servers */
+ 
+         n = 0;
+@@ -170,6 +172,8 @@
+ 
+         peers->next = backup;
+ 
++        ngx_hook_http_upstream_init_round_robin_backup(cf, us);
++
+         return NGX_OK;
+     }
+ 
+@@ -234,6 +238,8 @@
+ 
+     us->peer.data = peers;
+ 
++    ngx_hook_http_upstream_init_round_robin_implicitly_defined(cf, us);
++
+     /* implicitly defined upstream has no backup servers */
+ 
+     return NGX_OK;
+@@ -387,6 +393,8 @@
+     rrp->current = NULL;
+     rrp->config = 0;
+ 
++    ngx_hook_http_upstream_create_round_robin_peer(r, ur);
++
+     if (rrp->peers->number <= 8 * sizeof(uintptr_t)) {
+         rrp->tried = &rrp->data;
+         rrp->data = 0;
+@@ -443,6 +451,10 @@
+             goto failed;
+         }
+ 
++        if (ngx_hook_http_upstream_get_round_robin_peer(pc, peer) == NGX_ERROR) {
++            goto failed;
++        }
++
+         rrp->current = peer;
+ 
+     } else {
+@@ -548,6 +560,10 @@
+             continue;
+         }
+ 
++        if (ngx_hook_http_upstream_get_round_robin_peer(NULL, peer) == NGX_ERROR) {
++            continue;
++        }
++
+         peer->current_weight += peer->effective_weight;
+         total += peer->effective_weight;
+ 
+diff -Naur nginx-1.13.5/src/http/ngx_http_upstream_round_robin.h nginx-1.13.5.patch/src/http/ngx_http_upstream_round_robin.h
+--- nginx-1.13.5/src/http/ngx_http_upstream_round_robin.h	2017-09-05 07:59:32.000000000 -0700
++++ nginx-1.13.5.patch/src/http/ngx_http_upstream_round_robin.h	2017-09-18 08:43:52.670849187 -0700
+@@ -37,7 +37,9 @@
+     time_t                          fail_timeout;
+     ngx_msec_t                      slow_start;
+     ngx_msec_t                      start_time;
+-
++#if (NGX_HTTP_HOOK)
++    void                           *hook_data;
++#endif
+     ngx_uint_t                      down;
+ 
+ #if (NGX_HTTP_SSL || NGX_COMPAT)
+@@ -153,4 +155,6 @@
+ #endif
+ 
+ 
++#include "ngx_http_hook_module.h"
++
+ #endif /* _NGX_HTTP_UPSTREAM_ROUND_ROBIN_H_INCLUDED_ */

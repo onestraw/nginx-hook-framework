@@ -1,0 +1,3 @@
+[submodule "nginx_upstream_check_module"]
+	path = nginx_upstream_check_module
+	url = https://github.com/yaoweibin/nginx_upstream_check_module
